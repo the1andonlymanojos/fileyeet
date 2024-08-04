@@ -31,8 +31,8 @@ export default function AnswerComponent() {
                 {
 
                     const receiveChannel = e.channel;
-                    let fileDetails = null;
-                    let receivedChunks = [];
+                    let fileDetails: { size: number; name: string; } | null = null;
+                    let receivedChunks: BlobPart[] | undefined = [];
                     let totalSize = 0;
 
                     receiveChannel.onopen = () => {
@@ -45,16 +45,19 @@ export default function AnswerComponent() {
                             const parsedMessage = JSON.parse(message);
                             if (parsedMessage.type === 'fileDetails') {
                                 fileDetails = parsedMessage.details;
+                                // @ts-ignore
                                 totalSize = fileDetails.size;
                                 receivedChunks = [];
                                 console.log("Received file details: ", fileDetails);
                             } else if (parsedMessage.type === 'fileTransferComplete') {
                                 console.log(parsedMessage.message);
+                                // @ts-ignore
                                 if (receivedChunks.length > 0) {
                                     const blob = new Blob(receivedChunks);
                                     const url = URL.createObjectURL(blob);
                                     const a = document.createElement('a');
                                     a.href = url;
+                                    // @ts-ignore
                                     a.download = fileDetails.name;
                                     document.body.appendChild(a);
                                     a.click();
@@ -66,6 +69,7 @@ export default function AnswerComponent() {
                                 }
                             }
                         } else if (message instanceof ArrayBuffer) {
+                            // @ts-ignore
                             receivedChunks.push(new Uint8Array(message));
                             console.log("Received chunk: ", message.byteLength);
                         }

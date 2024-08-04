@@ -163,10 +163,12 @@ export default function ShareBox() {
                 const sendNextChunk = () => {
                     if (offset < fileData.byteLength) {
                         const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                        // @ts-ignore
                         data_channel.current.send(chunk);
                         offset += CHUNK_SIZE;
                         setTimeout(sendNextChunk, 10); // Slight delay to prevent overloading the channel
                     } else {
+                        // @ts-ignore
                         data_channel.current.send(JSON.stringify({
                             type: 'fileTransferComplete',
                             message: 'File transfer completed'
