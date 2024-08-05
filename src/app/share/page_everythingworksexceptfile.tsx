@@ -88,13 +88,13 @@ export default function ShareBox() {
                     console.log("Setting answer description: ", callData.answer);
                     const answerDescription = new RTCSessionDescription(callData.answer);
                     await pc.current?.setRemoteDescription(answerDescription);
-
+                    clearInterval(interval);
 
                     for (const candidate of callData.answerCandidates) {
                         await pc.current?.addIceCandidate(new RTCIceCandidate(candidate));
                     }
                     listen_for_ice_candidates.current = true
-                    clearInterval(interval);
+
                 }
 
 

@@ -9,8 +9,9 @@ export default function AnswerComponent() {
     const rc = useRef<RTCPeerConnection | null>(null);
     const recieve_channel = useRef<RTCDataChannel | null>(null);
     const feedback_channel = useRef<RTCDataChannel | null>(null);
-
-
+    const [debugLine,setDebugLine] = useState<string>("");
+    const [debugLine2,setDebugLine2] = useState<string>("");
+    let counter =0;
     useEffect(() => {
         if (typeof window !== 'undefined') {
             rc.current = new RTCPeerConnection({
@@ -41,6 +42,8 @@ export default function AnswerComponent() {
 
                     receiveChannel.onmessage = (e) => {
                         const message = e.data;
+                        console.log(e.data);
+                        console.log("type of message ", typeof(message))
                         if (typeof message === 'string') {
                             const parsedMessage = JSON.parse(message);
                             if (parsedMessage.type === 'fileDetails') {
@@ -49,6 +52,8 @@ export default function AnswerComponent() {
                                 totalSize = fileDetails.size;
                                 receivedChunks = [];
                                 console.log("Received file details: ", fileDetails);
+                                setDebugLine2("Received file details: "+fileDetails)
+
                             } else if (parsedMessage.type === 'fileTransferComplete') {
                                 console.log(parsedMessage.message);
                                 // @ts-ignore
@@ -68,10 +73,30 @@ export default function AnswerComponent() {
                                     console.log("File downloaded");
                                 }
                             }
-                        } else if (message instanceof ArrayBuffer) {
+                        } else if (message instanceof ArrayBuffer || message instanceof Blob) {
                             // @ts-ignore
-                            receivedChunks.push(new Uint8Array(message));
-                            console.log("Received chunk: ", message.byteLength);
+                            if (message instanceof Blob) {
+                                // Convert Blob to ArrayBuffer
+                                const reader = new FileReader();
+                                reader.onload = function(event) {
+                                    // @ts-ignore
+                                    const arrayBuffer = new Uint8Array(event.target.result);
+                                    // @ts-ignore
+                                    receivedChunks.push(arrayBuffer);
+                                    setDebugLine("Received chunk " + counter);
+                                    counter = counter +1;
+                                    console.log("Received chunk: ", arrayBuffer.byteLength);
+                                };
+                                reader.readAsArrayBuffer(message);
+                            } else {
+                                // @ts-ignore
+                                receivedChunks.push(new Uint8Array(message));
+                                setDebugLine("Received chunk " + counter);
+                                counter = counter + 1;
+                                if ("byteLength" in message) {
+                                    console.log("Received chunk: ", message.byteLength);
+                                }
+                            }
                         }
                     };
 
@@ -212,6 +237,7 @@ export default function AnswerComponent() {
                     </button>
                     <br></br>
                     <div className="px-4 py-2 bg-gray-200 rounded">
+                        {debugLine}
                     </div>
                 </div>
             </div>
