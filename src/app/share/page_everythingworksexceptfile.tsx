@@ -157,7 +157,8 @@ export default function ShareBox() {
                 }));
 
                 // Send file data in chunks
-                const CHUNK_SIZE = 16384; // 16KB chunks
+                //const CHUNK_SIZE = 16384; // 16KB chunks
+                const CHUNK_SIZE = 1200
                 let offset = 0;
 
                 const sendNextChunk = () => {
@@ -214,7 +215,7 @@ export default function ShareBox() {
                     </button>
                     <br></br>
                     <button onClick={async (e) => {
-                        data_channel.current?.send("SHABALABAdingdong")
+
                     }} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
                         Ping
                     </button>

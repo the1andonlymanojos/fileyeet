@@ -119,6 +119,7 @@ export default function AnswerComponent() {
 
                     feedbackChannel.onmessage = (e) => {
                         console.log("Feedback from sender: ", e.data);
+                        console.log(e.data)
                     };
 
                     feedbackChannel.onerror = (error) => {
