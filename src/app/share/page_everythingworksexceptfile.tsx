@@ -10,6 +10,7 @@ export default function ShareBox() {
     const pc = useRef<RTCPeerConnection | null>(null);
     const data_channel = useRef<RTCDataChannel | null>(null);
     const feedback_channel = useRef<RTCDataChannel | null>(null);
+    const new_Channel = useRef<RTCDataChannel | null>(null);
     let listen_for_ice_candidates = useRef(false);
     const [file, setFile] = useState<File | null>(null);
     const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
@@ -26,6 +27,15 @@ export default function ShareBox() {
             }
             data_channel.current.onmessage = (e) => {
                 console.log("Received message: ", e.data);
+            }
+            new_Channel.current = pc.current.createDataChannel("DATA");
+            new_Channel.current.binaryType = "arraybuffer"
+            new_Channel.current.onerror = (e)=>{
+                console.log("Error")
+                console.log(e)
+            }
+            new_Channel.current.onopen = (e)=>{
+                console.log("Connection opened, DATA channel opened")
             }
             feedback_channel.current = pc.current.createDataChannel("feedback");
             data_channel.current.onopen = (e) => {
@@ -139,6 +149,35 @@ export default function ShareBox() {
         }
     };
 
+    function sendData() {
+        if (file == null){
+            return;
+        }
+        console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
+
+        // Handle 0 size files.
+        const chunkSize = 16384;
+        const fileReader = new FileReader();
+        let offset = 0;
+        fileReader.addEventListener('error', error => console.error('Error reading file:', error));
+        fileReader.addEventListener('abort', event => console.log('File reading aborted:', event));
+        fileReader.addEventListener('load', e => {
+            console.log('FileRead.onload ', e);
+            new_Channel.current?.send(e.target.result);
+            offset += e.target.result.byteLength;
+            if (offset < file.size) {
+                readSlice(offset);
+            }
+        });
+        const readSlice = o => {
+            console.log('readSlice ', o);
+            const slice = file.slice(offset, o + chunkSize);
+            fileReader.readAsArrayBuffer(slice);
+        };
+        readSlice(0);
+    }
+
+
     const handleFileSend = () => {
         if (data_channel.current && fileData && file) {
             if (data_channel.current.readyState === 'open') {
@@ -161,23 +200,23 @@ export default function ShareBox() {
                 const CHUNK_SIZE = 1200
                 let offset = 0;
 
-                const sendNextChunk = () => {
-                    if (offset < fileData.byteLength) {
-                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
-                        // @ts-ignore
-                        data_channel.current.send(chunk);
-                        offset += CHUNK_SIZE;
-                        setTimeout(sendNextChunk, 10); // Slight delay to prevent overloading the channel
-                    } else {
-                        // @ts-ignore
-                        data_channel.current.send(JSON.stringify({
-                            type: 'fileTransferComplete',
-                            message: 'File transfer completed'
-                        }));
-                    }
-                };
-
-                sendNextChunk();
+                // const sendNextChunk = () => {
+                //     if (offset < fileData.byteLength) {
+                //         const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                //         // @ts-ignore
+                //         data_channel.current.send(chunk);
+                //         offset += CHUNK_SIZE;
+                //         setTimeout(sendNextChunk, 10); // Slight delay to prevent overloading the channel
+                //     } else {
+                //         // @ts-ignore
+                //         data_channel.current.send(JSON.stringify({
+                //             type: 'fileTransferComplete',
+                //             message: 'File transfer completed'
+                //         }));
+                //     }
+                // };
+                //
+                // sendNextChunk();
             } else {
                 console.error('Data channel is not open');
             }
@@ -215,7 +254,7 @@ export default function ShareBox() {
                     </button>
                     <br></br>
                     <button onClick={async (e) => {
-
+                        handleFileSend();
                     }} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
                         Ping
                     </button>
@@ -226,7 +265,7 @@ export default function ShareBox() {
                         className="px-4 py-2 bg-gray-200 text-gray-800 rounded cursor-pointer"
                     />
                     <br></br>
-                    <button onClick={handleFileSend}
+                    <button onClick={sendData}
                             className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600">
                         Send File
                     </button>

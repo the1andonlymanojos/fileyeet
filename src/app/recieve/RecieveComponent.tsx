@@ -9,9 +9,13 @@ export default function AnswerComponent() {
     const rc = useRef<RTCPeerConnection | null>(null);
     const recieve_channel = useRef<RTCDataChannel | null>(null);
     const feedback_channel = useRef<RTCDataChannel | null>(null);
+    const new_Channel = useRef<RTCDataChannel | null>(null);
     const [debugLine,setDebugLine] = useState<string>("");
     const [debugLine2,setDebugLine2] = useState<string>("");
     let counter =0;
+    let fileDetails: { size: number; name: string; } | null = null;
+    let receivedChunks: BlobPart[] | undefined = [];
+    let totalSize = 0;
     useEffect(() => {
         if (typeof window !== 'undefined') {
             rc.current = new RTCPeerConnection({
@@ -32,9 +36,7 @@ export default function AnswerComponent() {
                 {
 
                     const receiveChannel = e.channel;
-                    let fileDetails: { size: number; name: string; } | null = null;
-                    let receivedChunks: BlobPart[] | undefined = [];
-                    let totalSize = 0;
+
 
                     receiveChannel.onopen = () => {
                         console.log("Connection opened, listening to the other peer");
@@ -132,10 +134,59 @@ export default function AnswerComponent() {
 
                     feedback_channel.current = feedbackChannel;
                 }
+                else if(e.channel.label == 'DATA'){
+                new_Channel.current = e.channel;
+                new_Channel.current.binaryType = "arraybuffer";
+                new_Channel.current.onmessage = onReceiveMessageCallback;
+                }
 
             }
         }
     }, []);
+    let receiveBuffer  =[];
+    let receivedSize = 0;
+    function onReceiveMessageCallback(e) {
+        const message = e.data;
+        console.log(e.data);
+        console.log("type of message ", typeof(message))
+
+        if (typeof message === 'string'){
+            const parsedMessage = JSON.parse(message);
+            fileDetails = parsedMessage.details;
+            // @ts-ignore
+            totalSize = fileDetails.size;
+            receivedChunks = [];
+            console.log("Received file details: ", fileDetails);
+            setDebugLine2("Received file details: "+fileDetails)
+        } else {
+            console.log(`Received Message ${e.data.byteLength}`);
+            receiveBuffer.push(e.data);
+            receivedSize += e.data.byteLength;
+
+
+        // we are assuming that our signaling protocol told
+        // about the expected file size (and name, hash, etc).
+        const file = fileDetails
+        if (receivedSize === file.size) {
+            const received = new Blob(receiveBuffer);
+            receiveBuffer = [];
+            const url = URL.createObjectURL(received);
+            const a = document.createElement('a');
+            a.href = url;
+            // @ts-ignore
+            a.download = fileDetails.name;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 0);
+            console.log("File downloaded");
+
+        }
+        }
+    }
+
 
     const handleNewICECandidate = async (event: RTCPeerConnectionIceEvent) => {
         if (event.candidate) {
