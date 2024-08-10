@@ -15,7 +15,11 @@ export default function AnswerComponent() {
     useEffect(() => {
         if (typeof window !== 'undefined') {
             rc.current = new RTCPeerConnection({
-                iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
+                ],
                 iceCandidatePoolSize: 10
             });
             // rc.current.ondatachannel = (e) => {
@@ -32,8 +36,9 @@ export default function AnswerComponent() {
                 {
 
                     const receiveChannel = e.channel;
+                    receiveChannel.binaryType = "arraybuffer";
                     let fileDetails: { size: number; name: string; } | null = null;
-                    let receivedChunks: BlobPart[] | undefined = [];
+                    let receivedChunks: ArrayBuffer[] | undefined = [];
                     let totalSize = 0;
 
                     receiveChannel.onopen = () => {
@@ -57,7 +62,10 @@ export default function AnswerComponent() {
                             } else if (parsedMessage.type === 'fileTransferComplete') {
                                 console.log(parsedMessage.message);
                                 // @ts-ignore
+                                console.log(receivedChunks.length)
+                                // @ts-ignore
                                 if (receivedChunks.length > 0) {
+                                    console.log("HERE MAN, FILE DONE")
                                     const blob = new Blob(receivedChunks);
                                     const url = URL.createObjectURL(blob);
                                     const a = document.createElement('a');
@@ -73,30 +81,14 @@ export default function AnswerComponent() {
                                     console.log("File downloaded");
                                 }
                             }
-                        } else if (message instanceof ArrayBuffer || message instanceof Blob) {
+                        } else if (message instanceof ArrayBuffer) {
                             // @ts-ignore
-                            if (message instanceof Blob) {
-                                // Convert Blob to ArrayBuffer
-                                const reader = new FileReader();
-                                reader.onload = function(event) {
-                                    // @ts-ignore
-                                    const arrayBuffer = new Uint8Array(event.target.result);
-                                    // @ts-ignore
-                                    receivedChunks.push(arrayBuffer);
-                                    setDebugLine("Received chunk " + counter);
-                                    counter = counter +1;
-                                    console.log("Received chunk: ", arrayBuffer.byteLength);
-                                };
-                                reader.readAsArrayBuffer(message);
-                            } else {
                                 // @ts-ignore
-                                receivedChunks.push(new Uint8Array(message));
-                                setDebugLine("Received chunk " + counter);
+                                receivedChunks.push(message);
                                 counter = counter + 1;
                                 if ("byteLength" in message) {
                                     console.log("Received chunk: ", message.byteLength);
                                 }
-                            }
                         }
                     };
 

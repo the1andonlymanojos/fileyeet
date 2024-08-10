@@ -21,6 +21,7 @@ export default function ShareBox() {
                 iceCandidatePoolSize: 10
             });
             data_channel.current = pc.current.createDataChannel("main");
+            data_channel.current.binaryType = "arraybuffer";
             data_channel.current.onopen = (e) => {
                 console.log("Connection opened")
             }
@@ -127,20 +128,11 @@ export default function ShareBox() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
         setFile(file);
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const result = event.target?.result;
-                if (result) {
-                    setFileData(result as ArrayBuffer);
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        }
     };
 
     const handleFileSend = () => {
-        if (data_channel.current && fileData && file) {
+        console.log("Sending file");
+        if (data_channel.current && file) {
             if (data_channel.current.readyState === 'open') {
                 // Prepare file details
                 const fileDetails = {
@@ -156,18 +148,19 @@ export default function ShareBox() {
                     details: fileDetails
                 }));
 
-                // Send file data in chunks
-                //const CHUNK_SIZE = 16384; // 16KB chunks
-                const CHUNK_SIZE = 1200
+                const chunkSize = 16384;
+                const fileReader = new FileReader();
                 let offset = 0;
-
-                const sendNextChunk = () => {
-                    if (offset < fileData.byteLength) {
-                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
-                        // @ts-ignore
-                        data_channel.current.send(chunk);
-                        offset += CHUNK_SIZE;
-                        setTimeout(sendNextChunk, 10); // Slight delay to prevent overloading the channel
+                fileReader.addEventListener('error', error => console.error('Error reading file:', error));
+                fileReader.addEventListener('abort', event => console.log('File reading aborted:', event));
+                fileReader.addEventListener('load', e => {
+                    console.log('FileRead.onload ', e);
+                    // @ts-ignore
+                    data_channel.current?.send(e.target.result);
+                    // @ts-ignore
+                    offset += e.target.result.byteLength;
+                    if (offset < file.size) {
+                        readSlice(offset);
                     } else {
                         // @ts-ignore
                         data_channel.current.send(JSON.stringify({
@@ -175,9 +168,32 @@ export default function ShareBox() {
                             message: 'File transfer completed'
                         }));
                     }
+                });
+                const readSlice = (o: number) => {
+                    console.log('readSlice ', o);
+                    const slice = file.slice(offset, o + chunkSize);
+                    fileReader.readAsArrayBuffer(slice);
                 };
+                readSlice(0);
 
-                sendNextChunk();
+                // Send file data in chunks
+                //const CHUNK_SIZE = 16384; // 16KB chunks
+                // const CHUNK_SIZE = 1200
+                // let offset = 0;
+                //
+                // const sendNextChunk = () => {
+                //     if (offset < fileData.byteLength) {
+                //         const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                //         // @ts-ignore
+                //         data_channel.current.send(chunk);
+                //         offset += CHUNK_SIZE;
+                //         setTimeout(sendNextChunk, 10); // Slight delay to prevent overloading the channel
+                //     } else {
+                //         // @ts-ignor
+                //     }
+                // };
+                //
+                // sendNextChunk();
             } else {
                 console.error('Data channel is not open');
             }
