@@ -12,6 +12,8 @@ export default function AnswerComponent() {
     const [debugLine,setDebugLine] = useState<string>("");
     const [debugLine2,setDebugLine2] = useState<string>("");
     let counter =0;
+    let initialTime = 0;
+    let latesttime = 0;
     useEffect(() => {
         if (typeof window !== 'undefined') {
             rc.current = new RTCPeerConnection({
@@ -38,7 +40,7 @@ export default function AnswerComponent() {
                     const receiveChannel = e.channel;
                     receiveChannel.binaryType = "arraybuffer";
                     let fileDetails: { size: number; name: string; } | null = null;
-                    let receivedChunks: ArrayBuffer[] | undefined = [];
+                    let receivedChunks: ArrayBuffer[] = [];
                     let totalSize = 0;
 
                     receiveChannel.onopen = () => {
@@ -79,16 +81,40 @@ export default function AnswerComponent() {
                                         window.URL.revokeObjectURL(url);
                                     }, 0);
                                     console.log("File downloaded");
+                                    console.log("recieved chunk length ",receivedChunks.length*16352)
+                                    console.log("TIME ", ((latesttime-initialTime)/ 1000))
+                                    console.log("AVG speed", (receivedChunks.length*16352/1000000)/((latesttime-initialTime)/ 1000));
                                 }
                             }
                         } else if (message instanceof ArrayBuffer) {
+
+                            latesttime = Date.now();
                             // @ts-ignore
+                            const metadataSize = 4 + 8 + 4; // Total metadata size (identifier + timestamp + sequence number)
+                            const dataBuffer = message.slice(metadataSize);
+                            receivedChunks.push(dataBuffer);
                                 // @ts-ignore
-                                receivedChunks.push(message);
-                                counter = counter + 1;
-                                if ("byteLength" in message) {
-                                    console.log("Received chunk: ", message.byteLength);
-                                }
+                            const view = new DataView(message);
+
+                            // Read metadata
+                            const identifier = view.getUint32(0);               // Identifier (4 bytes)
+                            const timestamp = Number(view.getBigUint64(4));    // Timestamp (8 bytes)
+                            const sequenceNumber = view.getUint32(12);         // Sequence number (4 bytes)
+                            if (sequenceNumber == 0) {
+                                initialTime = Date.now();
+                            }
+
+                            console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
+
+                            // Extract data (after metadata)
+
+
+                            console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
+                            console.log("Received chunk size:", dataBuffer.byteLength);
+
+                            // Handle dataBuffer, e.g., store or concatenate
+
+
                         }
                     };
 
