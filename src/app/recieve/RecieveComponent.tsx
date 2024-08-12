@@ -1,7 +1,8 @@
 // app/AnswerComponent.tsx
 "use client"
-
+import { QrReader } from 'react-qr-reader';
 import {useEffect, useRef, useState} from "react";
+import {QRCodeCanvas} from "qrcode.react";
 
 export default function AnswerComponent() {
 
@@ -12,6 +13,15 @@ export default function AnswerComponent() {
     const [debugLine,setDebugLine] = useState<string>("");
     const [debugLine2,setDebugLine2] = useState<string>("");
     let counter =0;
+    let initialTime = 0;
+    let latesttime = 0;
+    const [debugInfo, setDebugInfo] = useState<string[]>([]); // Array for terminal style screen
+    const addLog = (message: string) => setDebugInfo((prevLogs: string[]) => [...prevLogs, message]);
+    const handleConnect = () => {
+        // Logic for connecting
+        setDebugInfo([...debugInfo, `Connected with ID: ${callId}`]);
+        handleSubmitAnswer();
+    };
     useEffect(() => {
         if (typeof window !== 'undefined') {
             rc.current = new RTCPeerConnection({
@@ -38,7 +48,7 @@ export default function AnswerComponent() {
                     const receiveChannel = e.channel;
                     receiveChannel.binaryType = "arraybuffer";
                     let fileDetails: { size: number; name: string; } | null = null;
-                    let receivedChunks: ArrayBuffer[] | undefined = [];
+                    let receivedChunks: ArrayBuffer[] = [];
                     let totalSize = 0;
 
                     receiveChannel.onopen = () => {
@@ -78,17 +88,44 @@ export default function AnswerComponent() {
                                         document.body.removeChild(a);
                                         window.URL.revokeObjectURL(url);
                                     }, 0);
+                                    addLog("File downloaded")
+                                    addLog("recieved chunk length "+receivedChunks.length*16352)
+                                    addLog("AVG speed"+ (receivedChunks.length*16352/1000000)/((latesttime-initialTime)/ 1000))
                                     console.log("File downloaded");
+                                    console.log("recieved chunk length ",receivedChunks.length*16352)
+                                    console.log("TIME ", ((latesttime-initialTime)/ 1000))
+                                    console.log("AVG speed", (receivedChunks.length*16352/1000000)/((latesttime-initialTime)/ 1000));
                                 }
                             }
                         } else if (message instanceof ArrayBuffer) {
+
+                            latesttime = Date.now();
                             // @ts-ignore
+                            const metadataSize = 4 + 8 + 4; // Total metadata size (identifier + timestamp + sequence number)
+                            const dataBuffer = message.slice(metadataSize);
+                            receivedChunks.push(dataBuffer);
                                 // @ts-ignore
-                                receivedChunks.push(message);
-                                counter = counter + 1;
-                                if ("byteLength" in message) {
-                                    console.log("Received chunk: ", message.byteLength);
-                                }
+                            const view = new DataView(message);
+
+                            // Read metadata
+                            const identifier = view.getUint32(0);               // Identifier (4 bytes)
+                            const timestamp = Number(view.getBigUint64(4));    // Timestamp (8 bytes)
+                            const sequenceNumber = view.getUint32(12);         // Sequence number (4 bytes)
+                            if (sequenceNumber == 0) {
+                                initialTime = Date.now();
+                            }
+
+                            console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
+
+                            // Extract data (after metadata)
+
+
+                            console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
+                            console.log("Received chunk size:", dataBuffer.byteLength);
+
+                            // Handle dataBuffer, e.g., store or concatenate
+
+
                         }
                     };
 
@@ -209,28 +246,52 @@ export default function AnswerComponent() {
         // Logic to retrieve answer
     };
 
+    const [show_scanner, setShowScanner] = useState(true);
     return (
-        <div className="flex h-screen items-center justify-center bg-gray-100">
-            <div className="bg-white p-10 rounded-lg shadow-lg text-center">
-                <h1 className="text-2xl font-bold mb-5">Answer Submission</h1>
+        <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg text-center">
+                <h1 className="text-2xl font-bold mb-5 text-gray-800 dark:text-white">Connect to Share</h1>
                 <div className="space-y-4">
                     <input
                         type="text"
                         value={callId}
                         onChange={(e) => setCallId(e.target.value)}
-                        placeholder="Enter Call ID"
-                        className="px-4 py-2 border rounded w-full"
+                        placeholder="Enter Share Code"
+                        className="px-4 py-2 border rounded w-full bg-gray-200 dark:bg-gray-700 dark:text-white"
                     />
-                    <button onClick={handleSubmitAnswer} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    <button
+                        onClick={()=>{
+                            handleConnect();
+                            setShowScanner(false);
+                        }}
+                        className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors duration-300"
+                    >
                         Connect
                     </button>
-                    <br></br>
-                    <button onClick={handleGetAnswer} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
-                        Get Answer
-                    </button>
-                    <br></br>
-                    <div className="px-4 py-2 bg-gray-200 rounded">
-                        {debugLine}
+
+                    {show_scanner && <QrReader
+                        onResult={(result, error) => {
+                            if (result) {
+                                // Use type assertion to access the private 'text' property
+                                const scannedText = (result as any).text;
+                                setCallId(scannedText);
+                                setDebugInfo([...debugInfo, `QR Scanned: ${scannedText}`]);
+                                handleConnect();
+                                setShowScanner(false);  // Update state instead of directly modifying the variable
+                            }
+                            if (error) {
+                                setDebugInfo([...debugInfo, `Scan Error: ${error.message}`]);
+                            }
+                        }}
+                        className="aspect-square"
+                     constraints={{facingMode: {ideal:'environment'}}}
+                    />}
+
+                    <div
+                        className="mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-300">
+                        {debugInfo.map((line, index) => (
+                            <div key={index}>{line}</div>
+                        ))}
                     </div>
                 </div>
             </div>
