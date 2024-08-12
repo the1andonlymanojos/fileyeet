@@ -2,7 +2,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react";
-
+import QRCode from 'qrcode.react';
 export default function ShareBox() {
 
     //let callId: string;
@@ -11,11 +11,11 @@ export default function ShareBox() {
     const data_channel = useRef<RTCDataChannel | null>(null);
     const feedback_channel = useRef<RTCDataChannel | null>(null);
     let listen_for_ice_candidates = useRef(false);
-    const [file, setFile] = useState<File | null>(null);
-    const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
     const fileInputRef = useRef(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [sending, setSending] = useState(false);
+    const [terminalVisible, setTerminalVisible] = useState(false);
+    const [logs, setLogs] = useState<string[]>([]);
 
     const handleFileClick = () => {
         if (fileInputRef.current) {
@@ -46,20 +46,17 @@ export default function ShareBox() {
     useEffect(() => {
         if (typeof window !== 'undefined') {
             pc.current = new RTCPeerConnection({
-                iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }],
                 iceCandidatePoolSize: 10
             });
             data_channel.current = pc.current.createDataChannel("main");
             data_channel.current.binaryType = "arraybuffer";
             data_channel.current.onopen = (e) => {
-                console.log("Connection opened")
-            }
-            data_channel.current.onmessage = (e) => {
-                console.log("Received message: ", e.data);
-            }
-            feedback_channel.current = pc.current.createDataChannel("feedback");
-            data_channel.current.onopen = (e) => {
-                console.log("Connection opened")
+               addLog(
+                   "Connection Opened!"
+               )
             }
             data_channel.current.onmessage = (e) => {
                 console.log("Received message: ", e.data);
@@ -71,6 +68,7 @@ export default function ShareBox() {
         if (event.candidate) {
             console.log("Event.Candidate", event.candidate);
             console.log("CallId", callId)
+            addLog("Sending new ICE candidate")
             await fetch('/api/add-ice-candidate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -105,6 +103,7 @@ export default function ShareBox() {
             console.log(data);
             setCallId(data.callId)
             await pc.current?.setLocalDescription(offerDescription);
+            addLog("Setting new local description!")
             initListen.current = true;
             return data.callId;
         }
@@ -121,9 +120,12 @@ export default function ShareBox() {
                     body: JSON.stringify({callId: callId})
                 }).then(res => res.json());
                 console.log("Call Data: ", callData);
+
                 // @ts-ignore
                 if (callData.answer && !pc.current.currentRemoteDescription) {
+
                     console.log("Setting answer description: ", callData.answer);
+                    addLog("Setting answer description:")
                     const answerDescription = new RTCSessionDescription(callData.answer);
                     await pc.current?.setRemoteDescription(answerDescription);
                     clearInterval(interval);
@@ -139,12 +141,15 @@ export default function ShareBox() {
                         console.log("Connection state: ", pc.current?.connectionState);
                         if (pc.current?.connectionState === 'connected') {
                             console.log("Connection opened, starting file send...");
+                            addLog("Connection opened, starting file send...")
                             data_channel.current?.addEventListener('open', handleFileSend);
                         }
                     });
 
                     listen_for_ice_candidates.current = true
 
+                } else {
+                    addLog("Waiting for response")
                 }
 
 
@@ -267,56 +272,60 @@ export default function ShareBox() {
         }
     };
 
-
+    const toggleTerminal = () => setTerminalVisible(!terminalVisible);
+    const addLog = (message: string) => setLogs((prevLogs: string[]) => [...prevLogs, message]);
     // @ts-ignore
     // @ts-ignore
     return (
         <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
             <div className="bg-white dark:bg-gray-800 m-6 p-6 rounded-lg shadow-lg  text-center">
-            {!sending&&
-                <div
-                    className="border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-lg p-10 relative overflow-hidden
+                {!sending &&
+                    <div
+                        className="border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-lg p-10 relative overflow-hidden
                     bg-white dark:bg-gray-800 hover:bg-gray-100 hover:dark:bg-gray-600 ease-in-out transition-colors duration-500
                     before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:to-gray-100
                     before:dark:to-gray-600 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500 aspect-square max-w-72 flex flex-col justify-center flex items-center"
-                    onClick={!selectedFile ? handleFileClick : undefined}
-                    onDrop={handleFileDrop}
-                    onDragOver={(e) => e.preventDefault()}
-                >
-                    {!selectedFile ? (
-                        <div className="flex flex-col items-center justify-center space-y-2 relative z-10">
-                            <div className="text-orange-500 text-4xl">+</div>
-                            <p className="text-gray-600 dark:text-gray-300">
-                                Click to browse or drag files here to start sharing
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col md:min-w-72 items-center justify-center space-y-2 relative z-10">
-                            <p className="text-gray-600  dark:text-gray-300">
-                                {selectedFile.name} <br></br>({(selectedFile.size / 1024).toFixed(2)} KB)
-                            </p>
-                            <button
-                                className="mt-4 px-4 py-2 top-0   bg-red-500 text-white rounded hover:bg-red-600"
-                                onClick={handleCancel}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    )}
-                    <input
-                        type="file"
-                        onChange={handleFileChange}
-                        className="hidden"
-                        ref={fileInputRef}
-                    />
-                </div>
-            } {
+                        onClick={!selectedFile ? handleFileClick : undefined}
+                        onDrop={handleFileDrop}
+                        onDragOver={(e) => e.preventDefault()}
+                    >
+                        {!selectedFile ? (
+                            <div className="flex flex-col items-center justify-center space-y-2 relative z-10">
+                                <div className="text-orange-500 text-4xl">+</div>
+                                <p className="text-gray-600 dark:text-gray-300">
+                                    Click to browse or drag files here to start sharing
+                                </p>
+                            </div>
+                        ) : (
+                            <div
+                                className="flex flex-col md:min-w-72 items-center justify-center space-y-2 relative z-10">
+                                <p className="text-gray-600  dark:text-gray-300">
+                                    {selectedFile.name} <br></br>({(selectedFile.size / 1024).toFixed(2)} KB)
+                                </p>
+                                <button
+                                    className="mt-4 px-4 py-2 top-0   bg-red-500 text-white rounded hover:bg-red-600"
+                                    onClick={handleCancel}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        )}
+                        <input
+                            type="file"
+                            onChange={handleFileChange}
+                            className="hidden"
+                            ref={fileInputRef}
+                        />
+                    </div>
+                } {
                 sending && selectedFile && selectedFile.name !== '' && (
                     <div className="border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-lg p-10 relative overflow-hidden
                 bg-white dark:bg-gray-800 hover:bg-gray-100 hover:dark:bg-gray-600 ease-in-out transition-colors duration-500
                 aspect-square max-w-72 flex flex-col items-center justify-center space-y-4 text-center">
-                        <div className="text-gray-600 dark:text-gray-300">
+                        <div
+                            className="text-gray-600 dark:text-gray-300 flex-col flex items-center justify-center space-y-2 relative z-10">
                             <p className="font-bold">Share this code with the receiver in any way you prefer:</p>
+                            <QRCode value={callId} size={128}/>
                             <p className="text-xl font-mono">{callId}</p>
                         </div>
                     </div>
@@ -339,6 +348,25 @@ export default function ShareBox() {
                             Send
                         </button>
                     )}
+                <div className="mt-6">
+                    <button
+                        className="w-full px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800"
+                        onClick={toggleTerminal}
+                    >
+                        {terminalVisible ? 'Hide Terminal' : 'Show Terminal'}
+                    </button>
+                    {terminalVisible && (
+                        <div className="mt-2 bg-black text-green-400 p-4 rounded-lg h-32 overflow-y-auto font-mono">
+                            {logs.length === 0 ? (
+                                <p>No logs yet...</p>
+                            ) : (
+                                logs.map((log, index) => (
+                                    <p key={index}>{log}</p>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
 
             </div>
         </div>

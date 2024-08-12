@@ -1,7 +1,8 @@
 // app/AnswerComponent.tsx
 "use client"
-
+import { QrReader } from 'react-qr-reader';
 import {useEffect, useRef, useState} from "react";
+import {QRCodeCanvas} from "qrcode.react";
 
 export default function AnswerComponent() {
 
@@ -14,6 +15,13 @@ export default function AnswerComponent() {
     let counter =0;
     let initialTime = 0;
     let latesttime = 0;
+    const [debugInfo, setDebugInfo] = useState<string[]>([]); // Array for terminal style screen
+
+    const handleConnect = () => {
+        // Logic for connecting
+        setDebugInfo([...debugInfo, `Connected with ID: ${callId}`]);
+        handleSubmitAnswer();
+    };
     useEffect(() => {
         if (typeof window !== 'undefined') {
             rc.current = new RTCPeerConnection({
@@ -235,28 +243,52 @@ export default function AnswerComponent() {
         // Logic to retrieve answer
     };
 
+    const [show_scanner, setShowScanner] = useState(true);
     return (
-        <div className="flex h-screen items-center justify-center bg-gray-100">
-            <div className="bg-white p-10 rounded-lg shadow-lg text-center">
-                <h1 className="text-2xl font-bold mb-5">Answer Submission</h1>
+        <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg text-center">
+                <h1 className="text-2xl font-bold mb-5 text-gray-800 dark:text-white">Connect to Share</h1>
                 <div className="space-y-4">
                     <input
                         type="text"
                         value={callId}
                         onChange={(e) => setCallId(e.target.value)}
-                        placeholder="Enter Call ID"
-                        className="px-4 py-2 border rounded w-full"
+                        placeholder="Enter Share Code"
+                        className="px-4 py-2 border rounded w-full bg-gray-200 dark:bg-gray-700 dark:text-white"
                     />
-                    <button onClick={handleSubmitAnswer} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    <button
+                        onClick={()=>{
+                            handleConnect();
+                            setShowScanner(false);
+                        }}
+                        className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors duration-300"
+                    >
                         Connect
                     </button>
-                    <br></br>
-                    <button onClick={handleGetAnswer} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
-                        Get Answer
-                    </button>
-                    <br></br>
-                    <div className="px-4 py-2 bg-gray-200 rounded">
-                        {debugLine}
+
+                    {show_scanner && <QrReader
+                        onResult={(result, error) => {
+                            if (result) {
+                                // Use type assertion to access the private 'text' property
+                                const scannedText = (result as any).text;
+                                setCallId(scannedText);
+                                setDebugInfo([...debugInfo, `QR Scanned: ${scannedText}`]);
+                                handleConnect();
+                                setShowScanner(false);  // Update state instead of directly modifying the variable
+                            }
+                            if (error) {
+                                setDebugInfo([...debugInfo, `Scan Error: ${error.message}`]);
+                            }
+                        }}
+                        className="aspect-square"
+                     constraints={{facingMode: {ideal:'environment'}}}
+                    />}
+
+                    <div
+                        className="mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-300">
+                        {debugInfo.map((line, index) => (
+                            <div key={index}>{line}</div>
+                        ))}
                     </div>
                 </div>
             </div>
