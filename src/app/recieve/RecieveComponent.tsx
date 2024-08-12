@@ -16,7 +16,7 @@ export default function AnswerComponent() {
     let initialTime = 0;
     let latesttime = 0;
     const [debugInfo, setDebugInfo] = useState<string[]>([]); // Array for terminal style screen
-
+    const addLog = (message: string) => setDebugInfo((prevLogs: string[]) => [...prevLogs, message]);
     const handleConnect = () => {
         // Logic for connecting
         setDebugInfo([...debugInfo, `Connected with ID: ${callId}`]);
@@ -88,6 +88,9 @@ export default function AnswerComponent() {
                                         document.body.removeChild(a);
                                         window.URL.revokeObjectURL(url);
                                     }, 0);
+                                    addLog("File downloaded")
+                                    addLog("recieved chunk length "+receivedChunks.length*16352)
+                                    addLog("AVG speed"+ (receivedChunks.length*16352/1000000)/((latesttime-initialTime)/ 1000))
                                     console.log("File downloaded");
                                     console.log("recieved chunk length ",receivedChunks.length*16352)
                                     console.log("TIME ", ((latesttime-initialTime)/ 1000))
