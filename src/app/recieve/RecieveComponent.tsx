@@ -57,8 +57,8 @@ export default function AnswerComponent() {
 
                     receiveChannel.onmessage = (e) => {
                         const message = e.data;
-                        console.log(e.data);
-                        console.log("type of message ", typeof(message))
+                        //console.log(e.data);
+                       // console.log("type of message ", typeof(message))
                         if (typeof message === 'string') {
                             const parsedMessage = JSON.parse(message);
                             if (parsedMessage.type === 'fileDetails') {
@@ -114,6 +114,7 @@ export default function AnswerComponent() {
                             if (sequenceNumber == 0) {
                                 initialTime = Date.now();
                             }
+                            if (sequenceNumber%100==0){
 
                             console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
 
@@ -122,7 +123,7 @@ export default function AnswerComponent() {
 
                             console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
                             console.log("Received chunk size:", dataBuffer.byteLength);
-
+                            }
                             // Handle dataBuffer, e.g., store or concatenate
 
 
