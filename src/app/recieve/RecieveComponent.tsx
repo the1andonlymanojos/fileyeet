@@ -1,8 +1,7 @@
 // app/AnswerComponent.tsx
 "use client"
-import { QrReader } from 'react-qr-reader';
 import {useEffect, useRef, useState} from "react";
-import {QRCodeCanvas} from "qrcode.react";
+
 
 export default function AnswerComponent() {
 
@@ -10,11 +9,18 @@ export default function AnswerComponent() {
     const rc = useRef<RTCPeerConnection | null>(null);
     const recieve_channel = useRef<RTCDataChannel | null>(null);
     const feedback_channel = useRef<RTCDataChannel | null>(null);
-    const [debugLine,setDebugLine] = useState<string>("");
-    const [debugLine2,setDebugLine2] = useState<string>("");
-    let counter =0;
+ //  const [debugInfo, setDebugInfo] = useState<string[]>([]); // Array for terminal style screen
+    const [progress, setProgress] = useState(0); // Progress percentage
+    const [avgSpeed, setAvgSpeed] = useState(0); // Average speed in MBps
+    const [show_terminal, setShow_terminal] = useState(false)
+    const connectButtonRef = useRef(null);
+    //local storage:
+
     let initialTime = 0;
     let latesttime = 0;
+    const chunkSize = 16384 - 16; // Adjusted chunk size, considering metadata
+    let threshold = 100;
+
     const [debugInfo, setDebugInfo] = useState<string[]>([]); // Array for terminal style screen
     const addLog = (message: string) => setDebugInfo((prevLogs: string[]) => [...prevLogs, message]);
     const handleConnect = () => {
@@ -49,10 +55,10 @@ export default function AnswerComponent() {
                     receiveChannel.binaryType = "arraybuffer";
                     let fileDetails: { size: number; name: string; } | null = null;
                     let receivedChunks: ArrayBuffer[] = [];
-                    let totalSize = 0;
 
                     receiveChannel.onopen = () => {
                         console.log("Connection opened, listening to the other peer");
+                        setDebugInfo([...debugInfo, "Connected to sender"]);
                     };
 
                     receiveChannel.onmessage = (e) => {
@@ -64,15 +70,17 @@ export default function AnswerComponent() {
                             if (parsedMessage.type === 'fileDetails') {
                                 fileDetails = parsedMessage.details;
                                 // @ts-ignore
-                                totalSize = fileDetails.size;
+                                //totalSize = fileDetails.size;
+                                // @ts-ignore
+
                                 receivedChunks = [];
-                                console.log("Received file details: ", fileDetails);
-                                setDebugLine2("Received file details: "+fileDetails)
+                                addLog("Received file details: " + fileDetails?.name);
+                                setProgress(0); // Reset progress at the start of file transfer
 
                             } else if (parsedMessage.type === 'fileTransferComplete') {
-                                console.log(parsedMessage.message);
+                               // console.log(parsedMessage.message);
                                 // @ts-ignore
-                                console.log(receivedChunks.length)
+                                //console.log(receivedChunks.length)
                                 // @ts-ignore
                                 if (receivedChunks.length > 0) {
                                     console.log("HERE MAN, FILE DONE")
@@ -88,13 +96,12 @@ export default function AnswerComponent() {
                                         document.body.removeChild(a);
                                         window.URL.revokeObjectURL(url);
                                     }, 0);
-                                    addLog("File downloaded")
-                                    addLog("recieved chunk length "+receivedChunks.length*16352)
+                                    addLog("File downloaded successfully.");
+                                    setProgress(100); // Mark progress as complete
                                     addLog("AVG speed"+ (receivedChunks.length*16352/1000000)/((latesttime-initialTime)/ 1000))
                                     console.log("File downloaded");
-                                    console.log("recieved chunk length ",receivedChunks.length*16352)
-                                    console.log("TIME ", ((latesttime-initialTime)/ 1000))
                                     console.log("AVG speed", (receivedChunks.length*16352/1000000)/((latesttime-initialTime)/ 1000));
+                                    rc.current?.close();
                                 }
                             }
                         } else if (message instanceof ArrayBuffer) {
@@ -114,15 +121,26 @@ export default function AnswerComponent() {
                             if (sequenceNumber == 0) {
                                 initialTime = Date.now();
                             }
-                            if (sequenceNumber%100==0){
+                            if (sequenceNumber%threshold==0){
+                                feedback_channel.current?.send(JSON.stringify({type: 'feedback', message: 'received', sequenceNumber: sequenceNumber}));
+                            }
+                            // @ts-ignore
+                            if (sequenceNumber%100==0 || sequenceNumber >= fileDetails?.size/(16384-16)-1 ){
 
-                            console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
+                            // console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
+                            // console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
+                            // console.log("Received chunk size:", dataBuffer.byteLength);
+                                if (fileDetails) {
+                                    const totalSize = fileDetails.size;
+                                    const receivedSize = sequenceNumber * chunkSize;
+                                    const progressPercentage = (receivedSize / totalSize) * 100;
+                                    setProgress(progressPercentage);
 
-                            // Extract data (after metadata)
+                                    const elapsedTime = (latesttime - initialTime) / 1000; // in seconds
+                                    const averageSpeed = (receivedSize / 1000000) / elapsedTime; // in MBps
+                                    setAvgSpeed(averageSpeed);
+                                }
 
-
-                            console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
-                            console.log("Received chunk size:", dataBuffer.byteLength);
                             }
                             // Handle dataBuffer, e.g., store or concatenate
 
@@ -261,38 +279,44 @@ export default function AnswerComponent() {
                         className="px-4 py-2 border rounded w-full bg-gray-200 dark:bg-gray-700 dark:text-white"
                     />
                     <button
-                        onClick={()=>{
+                        onClick={() => {
                             handleConnect();
-                            setShowScanner(false);
                         }}
                         className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors duration-300"
+                        ref={connectButtonRef}
                     >
-                        Connect
+                        Connect and Download
                     </button>
 
-                    {show_scanner && <QrReader
-                        onResult={(result, error) => {
-                            if (result) {
-                                // Use type assertion to access the private 'text' property
-                                const scannedText = (result as any).text;
-                                setCallId(scannedText);
-                                setDebugInfo([...debugInfo, `QR Scanned: ${scannedText}`]);
-                                handleConnect();
-                                setShowScanner(false);  // Update state instead of directly modifying the variable
-                            }
-                            if (error) {
-                                setDebugInfo([...debugInfo, `Scan Error: ${error.message}`]);
-                            }
-                        }}
-                        className="aspect-square"
-                     constraints={{facingMode: {ideal:'environment'}}}
-                    />}
 
-                    <div
-                        className="mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-300">
-                        {debugInfo.map((line, index) => (
-                            <div key={index}>{line}</div>
-                        ))}
+                    <div className="mt-4 w-full bg-gray-200 dark:bg-gray-700 rounded-full">
+                        <div
+                            className="bg-blue-500 text-xs font-medium text-blue-200 text-center p-0.5 leading-none rounded-full"
+                            style={{width: `${progress}%`}}
+                        >
+                            {progress.toFixed(2)}%
+                        </div>
+                    </div>
+                    <div className="mt-6">
+                        <button
+                            className="w-full px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800"
+                            onClick={()=>{
+                                setShow_terminal(!show_terminal);
+                            }}
+                        >
+                            {show_terminal ? 'Hide Terminal' : 'Show Terminal'}
+                        </button>
+                        {show_terminal && (
+                            <div className="mt-2 bg-black text-green-400 p-4 rounded-lg h-32 overflow-y-auto font-mono">
+                                {debugInfo.length === 0 ? (
+                                    <p>No logs yet...</p>
+                                ) : (
+                                    debugInfo.map((log, index) => (
+                                        <p key={index}>{log}</p>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

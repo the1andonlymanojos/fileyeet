@@ -16,6 +16,22 @@ export default function ShareBox() {
     const [sending, setSending] = useState(false);
     const [terminalVisible, setTerminalVisible] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);
+   const last_ack = useRef(0);
+   const threshold = 100;
+
+    const startTime = useRef(0);
+    const [progress, setProgress] = useState(0);
+    const [speed, setSpeed] = useState(0);
+
+    const updateProgress = (transferredBytes: number) => {
+        const percentage = (transferredBytes / (selectedFile?.size || 1)) * 100;
+        setProgress(percentage);
+
+        const currentTime = Date.now();
+        const elapsedTime = (currentTime - startTime.current) / 1000; // in seconds
+        const bytesPerSecond = transferredBytes / elapsedTime;
+        setSpeed(bytesPerSecond / 1024); // convert to KBps
+    };
 
     const handleFileClick = () => {
         if (fileInputRef.current) {
@@ -63,6 +79,22 @@ export default function ShareBox() {
             }
             data_channel.current.onmessage = (e) => {
                 console.log("Received message: ", e.data);
+            }
+
+            feedback_channel.current = pc.current.createDataChannel("feedback");
+            feedback_channel.current.binaryType = "arraybuffer";
+            feedback_channel.current.onopen = (e) => {
+                addLog(
+                    "Feedback Connection Opened!"
+                )
+            }
+            feedback_channel.current.onmessage = (e) => {
+                console.log("Received message: ", e.data);
+                const data = JSON.parse(e.data);
+                if (data.type === 'feedback') {
+                    console.log("setting last ack: ", data.sequenceNumber);
+                    last_ack.current = data.sequenceNumber;
+                }
             }
         }
     }, []);  //Initialising
@@ -234,9 +266,21 @@ export default function ShareBox() {
 
                     data_channel.current?.send(newArrayBuffer);
                     offset += arrayBuffer.byteLength;
-                    if (offset < selectedFile.size) {
-                        readSlice(offset);
-                    } else {
+                    updateProgress(offset);
+                   if (offset < selectedFile.size) {
+                        const waitForAck = () => {
+                    if (!(last_ack.current + threshold+1 > sequenceNumber)) {
+                        // console.log(last_ack + 11)
+                        // console.log(sequenceNumber)
+                        // console.log(last_ack + 11 > sequenceNumber)
+                         console.log("Waiting for ack: ", last_ack, sequenceNumber);
+                        setTimeout(waitForAck, 20); // Wait for 100ms before checking again
+                     } else {
+                         readSlice(offset);
+                    }
+                };
+    waitForAck();
+} else {
                         // @ts-ignore
                         data_channel.current.send(JSON.stringify({
                             type: 'fileTransferComplete',
@@ -249,6 +293,7 @@ export default function ShareBox() {
                     const slice = selectedFile.slice(offset, o + chunkSize);
                     fileReader.readAsArrayBuffer(slice);
                 };
+                startTime.current = Date.now();
                 readSlice(0);
 
                 // Send file data in chunks
@@ -335,6 +380,28 @@ export default function ShareBox() {
                 )
             }
 
+                {/* Progress Bar */}
+                {sending && (
+                    <div className="mt-4 w-full bg-gray-200 dark:bg-gray-700 rounded-full">
+                        <div
+                            className="bg-blue-500 text-xs font-medium text-blue-100 text-center p-0.5 leading-none rounded-full"
+                            style={{ width: `${progress}%` }}
+                        >
+                            {progress.toFixed(2)}%
+                        </div>
+                    </div>
+                )}
+
+                {/* Speed Tracker */}
+                {sending && (
+                    <div className="mt-2 text-gray-600 dark:text-gray-300">
+                        {speed > 0 ? (
+                            <p>Speed: {speed.toFixed(2)} KB/s</p>
+                        ) : (
+                            <p>Calculating speed...</p>
+                        )}
+                    </div>
+                )}
 
                 {selectedFile && !sending &&
                     (
