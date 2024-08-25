@@ -130,6 +130,7 @@ export default function AnswerComponent() {
                             // console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
                             // console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
                             // console.log("Received chunk size:", dataBuffer.byteLength);
+                                console.log(sequenceNumber)
                                 if (fileDetails) {
                                     const totalSize = fileDetails.size;
                                     const receivedSize = sequenceNumber * chunkSize;
@@ -245,16 +246,20 @@ export default function AnswerComponent() {
             await rc.current.setLocalDescription(answerDescription);
 
             const interval = setInterval(async () => {
-                const callData = await fetch('/api/get-call', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ callId })
-                }).then(res => res.json());
 
-                for (const candidate of callData.answerCandidates) {
-                    // @ts-ignore
-                    await rc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                if(rc.current?.iceConnectionState === 'connected'){
+                    const callData = await fetch('/api/get-call', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({callId})
+                    }).then(res => res.json());
+
+                    for (const candidate of callData.answerCandidates) {
+                        // @ts-ignore
+                        await rc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                    }
                 }
+
             }, 20000);
         } else {
             console.log("Error occurred.");
