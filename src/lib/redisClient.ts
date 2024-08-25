@@ -6,7 +6,7 @@ if (process.env.REDIS_PASSWORD){
   port: 16874, // Redis port
   host: "redis-16874.c93.us-east-1-3.ec2.redns.redis-cloud.com", // Redis host
   username: "default", // needs Redis >= 6
-  password: 'process.env.REDIS_PASSWORD',
+  password: process.env.REDIS_PASSWORD,
  });
 } else {
  redis = new Redis({});
