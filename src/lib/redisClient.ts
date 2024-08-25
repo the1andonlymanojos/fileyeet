@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
-import {red} from "next/dist/lib/picocolors";
-let redis;
+
+let redis:Redis;
 if (process.env.REDIS_PASSWORD){
  redis = new  Redis({
   port: 16874, // Redis port
