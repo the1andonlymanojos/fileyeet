@@ -33,7 +33,7 @@ export default function Home() {
                     Why FileYeet?
                 </h2>
                 <p className="text-lg text-gray-700 dark:text-gray-300 max-w-3xl mx-auto mb-12">
-                    FileYeet was created with privacy and simplicity in mind. Here's why it's the right choice:
+                    FileYeet was created with privacy and simplicity in mind. Here&apos;s why it&apos;s the right choice:
                 </p>
                 <ul className="text-left list-disc list-inside text-lg text-gray-700 dark:text-gray-300 max-w-3xl mx-auto mb-12 space-y-2">
                     <li>No tracking or data analysis—your files remain private.</li>
