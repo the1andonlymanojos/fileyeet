@@ -49,7 +49,7 @@ export default function RootLayout({
           <p>
             This product is under active development by Manoj Shivagange. <br />
             It may not work on networks where UDP is blocked <br />
-            and/or if the sender and receiver aren't on the same network.
+            and/or if the sender and receiver aren&apos;t on the same network.
             <br />
             Feedback is much appreciated! <br />
           </p>
