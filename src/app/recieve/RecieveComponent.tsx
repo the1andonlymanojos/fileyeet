@@ -316,8 +316,8 @@ export default function AnswerComponent() {
 
   const [show_scanner, setShowScanner] = useState(true);
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg text-center">
+    <div className="flex h-screen  justify-center bg-gray-100 dark:bg-gray-900">
+      <div className="bg-white h-fit  mt-12 dark:bg-gray-800 p-6 rounded-lg shadow-lg text-center">
         <button
           onClick={handleBackClick}
           className=" top-4 left-4 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 flex items-center space-x-2"

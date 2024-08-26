@@ -414,8 +414,8 @@ export default function ShareBox() {
   // @ts-ignore
   // @ts-ignore
   return (
-    <div className="flex h-svh items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 m-6 p-6 rounded-lg shadow-lg relative pt-12  text-center">
+    <div className="flex  min-h-svh  justify-center bg-gray-100 dark:bg-gray-900">
+      <div className="bg-white h-fit mt-12 dark:bg-gray-800 m-6 p-6 rounded-lg shadow-lg relative pt-12  text-center">
         <button
           onClick={handleBackClick}
           className="absolute top-4 left-4 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 flex items-center space-x-2"
