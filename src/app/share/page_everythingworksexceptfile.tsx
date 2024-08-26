@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode.react";
+import { resolveMetadataItems } from "next/dist/lib/metadata/resolve-metadata";
 export default function ShareBox() {
   //let callId: string;
   const [callId, setCallId] = useState("");
@@ -96,30 +97,32 @@ export default function ShareBox() {
     }
   }, []); //Initialising
 
-  const handleNewICECandidate = async (event: RTCPeerConnectionIceEvent) => {
-    if (event.candidate) {
-      console.log("Event.Candidate", event.candidate);
-      console.log("CallId", callId);
-      addLog("Sending new ICE candidate");
-      await fetch("/api/add-ice-candidate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          callId,
-          candidate: event.candidate.toJSON(),
-          type: "offer",
-        }),
-      });
-    }
-  };
+  // const handleNewICECandidate = async (event: RTCPeerConnectionIceEvent) => {
+  //   console.log(JSON.stringify(pc.current?.localDescription?.sdp));
+  //   console.log("SDP");
+  //   if (event.candidate) {
+  //     console.log("Event.Candidate", event.candidate);
+  //     console.log("CallId", callId);
+  //     addLog("Sending new ICE candidate");
+  //     await fetch("/api/add-ice-candidate", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         callId,
+  //         candidate: event.candidate.toJSON(),
+  //         type: "offer",
+  //       }),
+  //     });
+  //   }
+  // };
 
-  useEffect(() => {
-    if (pc.current) {
-      pc.current.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
-        handleNewICECandidate(event); // console.log("New Ice Candidate: ", event.candidate?.toJSON());
-      };
-    }
-  }, [callId, pc.current]); //updating callback
+  // useEffect(() => {
+  //   if (pc.current) {
+  //     pc.current.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+  //       handleNewICECandidate(event); // console.log("New Ice Candidate: ", event.candidate?.toJSON());
+  //     };
+  //   }
+  // }, [callId, pc.current]); //updating callback
 
   async function handleStartCall() {
     if (pc.current) {
@@ -132,6 +135,32 @@ export default function ShareBox() {
       const data = await response.json();
       console.log(data);
       setCallId(data.callId);
+      pc.current.onicegatheringstatechange = async () => {
+        console.log("ICE Gathering State: ", pc.current?.iceGatheringState);
+        if (pc.current?.iceGatheringState === "complete") {
+          console.log("ICE Gathering Complete!");
+          addLog("ICE Gathering Complete!");
+          const res = await fetch("/api/update-offer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              callId: data.callId,
+              offer: pc.current?.localDescription,
+            }),
+          });
+        }
+      };
+
+      // pc.current?.addEventListener("connectionstatechange", () => {
+      //   console.log("Connection state: ", pc.current?.connectionState);
+      //   if (pc.current?.connectionState === "connected") {
+      //     console.log("Connection opened, starting file send...");
+      //     addLog("Connection opened, starting file send...");
+      //     data_channel.current?.addEventListener("open", handleFileSend);
+      //   }
+      // });
+      data_channel.current?.addEventListener("open", handleFileSend);
+
       await pc.current?.setLocalDescription(offerDescription);
       addLog("Setting new local description!");
       initListen.current = true;
@@ -150,6 +179,8 @@ export default function ShareBox() {
           body: JSON.stringify({ callId: callId }),
         }).then((res) => res.json());
         console.log("Call Data: ", callData);
+        if (callData.answer.sdp)
+          console.log(JSON.stringify(callData.answer.sdp));
 
         // @ts-ignore
         if (callData.answer && !pc.current.currentRemoteDescription) {
@@ -165,15 +196,7 @@ export default function ShareBox() {
           // console.log("State", pc.current?.connectionState)
           // if (pc.current?.connectionState == 'new'){
           //     handleFileSend();
-          // }
-          pc.current?.addEventListener("connectionstatechange", () => {
-            console.log("Connection state: ", pc.current?.connectionState);
-            if (pc.current?.connectionState === "connected") {
-              console.log("Connection opened, starting file send...");
-              addLog("Connection opened, starting file send...");
-              data_channel.current?.addEventListener("open", handleFileSend);
-            }
-          });
+          //}
 
           listen_for_ice_candidates.current = true;
         } else {
@@ -211,6 +234,36 @@ export default function ShareBox() {
 
   const handleFileSend = () => {
     console.log("Sending file");
+    //get max chunk size
+    const lc_descr = pc.current?.localDescription;
+    const rc_descr = pc.current?.remoteDescription;
+
+    const extractMaxMessageSize = (sdp: string | undefined): number | null => {
+      if (!sdp) return null;
+      const lines = sdp.split("\n");
+      for (const line of lines) {
+        if (line.startsWith("a=max-message-size:")) {
+          const parts = line.split(":");
+          if (parts.length === 2) {
+            return parseInt(parts[1], 10);
+          }
+        }
+      }
+      return null;
+    };
+
+    const maxLcMessageSize = extractMaxMessageSize(lc_descr?.sdp);
+    const maxRcMessageSize = extractMaxMessageSize(rc_descr?.sdp);
+
+    console.log("Max LC Message Size:", maxLcMessageSize);
+    console.log("Max RC Message Size:", maxRcMessageSize);
+    let maxMessageSize = 0;
+    if (maxLcMessageSize && maxRcMessageSize) {
+      maxMessageSize = Math.min(maxLcMessageSize, maxRcMessageSize);
+      console.log("Max Message Size:", maxMessageSize);
+    }
+
+    const chunkSize = maxMessageSize > 16384 ? 2 * 16384 - 16 : 16384 - 16;
     if (data_channel.current && selectedFile) {
       if (data_channel.current.readyState === "open") {
         // Prepare file details
@@ -226,10 +279,10 @@ export default function ShareBox() {
           JSON.stringify({
             type: "fileDetails",
             details: fileDetails,
+            chunkSize,
           }),
         );
 
-        const chunkSize = 16384 - 16;
         const fileReader = new FileReader();
         let offset = 0;
         let sequenceNumber = 0;
