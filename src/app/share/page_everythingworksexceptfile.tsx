@@ -179,7 +179,7 @@ export default function ShareBox() {
           body: JSON.stringify({ callId: callId }),
         }).then((res) => res.json());
         console.log("Call Data: ", callData);
-        if (callData.answer.sdp)
+        if (callData.answer && callData.answer.sdp)
           console.log(JSON.stringify(callData.answer.sdp));
 
         // @ts-ignore
