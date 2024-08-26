@@ -1,8 +1,11 @@
 // app/page_everythingworksexceptfile.tsx
 "use client";
-
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode.react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faChevronLeft } from "@fortawesome/free-solid-svg-icons";
+
 import { resolveMetadataItems } from "next/dist/lib/metadata/resolve-metadata";
 export default function ShareBox() {
   //let callId: string;
@@ -17,11 +20,18 @@ export default function ShareBox() {
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const last_ack = useRef(0);
-  const threshold = 100;
+  let threshold = 100;
 
   const startTime = useRef(0);
   const [progress, setProgress] = useState(0);
   const [speed, setSpeed] = useState(0);
+  const [windowSizePercentage, setWindowSizePercentage] = useState(0);
+  const [Chunk_size, setChunk_size] = useState(0);
+  // Add this function to handle the slider change
+  const [ControlVisible, setControlVisible] = useState(false);
+  const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setWindowSizePercentage(parseInt(event.target.value, 0));
+  };
 
   const updateProgress = (transferredBytes: number) => {
     const percentage = (transferredBytes / (selectedFile?.size || 1)) * 100;
@@ -37,6 +47,22 @@ export default function ShareBox() {
     if (fileInputRef.current) {
       // @ts-ignore
       fileInputRef.current.click();
+    }
+  };
+  const router = useRouter();
+
+  const handleBackClick = () => {
+    if (pc.current?.connectionState === "connected") {
+      if (
+        confirm(
+          "Any ongoing transfer will be canceled. Do you want to continue?",
+        )
+      ) {
+        // Perform any cleanup or state reset needed here
+        router.push("/");
+      }
+    } else {
+      router.push("/");
     }
   };
 
@@ -263,7 +289,14 @@ export default function ShareBox() {
       console.log("Max Message Size:", maxMessageSize);
     }
 
-    const chunkSize = maxMessageSize > 16384 ? 2 * 16384 - 16 : 16384 - 16;
+    let chunkSize = maxMessageSize > 16384 ? 2 * 16384 - 16 : 16384 - 16;
+    chunkSize = maxMessageSize > 2 * 16384 ? 3 * 16384 - 16 : chunkSize;
+    if (Chunk_size > 0) {
+      chunkSize = (Chunk_size / 100) * maxMessageSize;
+    }
+    if (windowSizePercentage > 0) {
+      threshold = windowSizePercentage;
+    }
     if (data_channel.current && selectedFile) {
       if (data_channel.current.readyState === "open") {
         // Prepare file details
@@ -280,6 +313,7 @@ export default function ShareBox() {
             type: "fileDetails",
             details: fileDetails,
             chunkSize,
+            threshold,
           }),
         );
 
@@ -317,16 +351,17 @@ export default function ShareBox() {
           offset += arrayBuffer.byteLength;
           updateProgress(offset);
           if (offset < selectedFile.size) {
-            let timeout_time = 5;
+            let timeout_time = 10;
             const waitForAck = () => {
               if (!(last_ack.current + threshold + 1 > sequenceNumber)) {
                 // console.log(last_ack + 11)
                 // console.log(sequenceNumber)
                 // console.log(last_ack + 11 > sequenceNumber)
                 console.log("Waiting for ack: ", last_ack, sequenceNumber);
-                timeout_time = timeout_time * 2;
+                timeout_time = timeout_time + 2;
                 setTimeout(waitForAck, timeout_time); // Wait for 100ms before checking again
               } else {
+                timeout_time = 10;
                 readSlice(offset);
               }
             };
@@ -379,8 +414,15 @@ export default function ShareBox() {
   // @ts-ignore
   // @ts-ignore
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 m-6 p-6 rounded-lg shadow-lg  text-center">
+    <div className="flex h-svh items-center justify-center bg-gray-100 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 m-6 p-6 rounded-lg shadow-lg relative pt-12  text-center">
+        <button
+          onClick={handleBackClick}
+          className="absolute top-4 left-4 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 flex items-center space-x-2"
+        >
+          <FontAwesomeIcon icon={faChevronLeft} />
+          <span>Back</span>
+        </button>
         {!sending && (
           <div
             className="border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-lg p-10 relative overflow-hidden
@@ -485,6 +527,50 @@ export default function ShareBox() {
               ) : (
                 logs.map((log, index) => <p key={index}>{log}</p>)
               )}
+            </div>
+          )}
+        </div>
+        <div className="relative">
+          <button
+            className="mt-1 w-full px-4 py-1  text-gray-600 rounded  text-sm"
+            onClick={() => setControlVisible(!ControlVisible)}
+          >
+            {ControlVisible
+              ? "Hide Advanced Controls"
+              : "Show Advanced Controls"}
+          </button>
+          {ControlVisible && (
+            <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-md space-y-3">
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 mb-1 text-sm">
+                  Window Size (in multiples of Chunk Size)
+                </p>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={windowSizePercentage}
+                  onChange={(e) => {
+                    setWindowSizePercentage(parseInt(e.target.value, 10));
+                  }}
+                  className="h-2 bg-blue-400 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 mb-1 text-sm">
+                  Chunk size (in % of Max Message Size)
+                </p>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={Chunk_size}
+                  onChange={(e) => {
+                    setChunk_size(parseInt(e.target.value, 10));
+                  }}
+                  className="h-2 bg-green-400 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
             </div>
           )}
         </div>

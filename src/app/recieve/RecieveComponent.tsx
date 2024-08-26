@@ -1,6 +1,9 @@
 // app/AnswerComponent.tsx
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faChevronLeft } from "@fortawesome/free-solid-svg-icons";
+import { useRouter } from "next/navigation";
 
 export default function AnswerComponent() {
   const [callId, setCallId] = useState("");
@@ -17,7 +20,7 @@ export default function AnswerComponent() {
   let initialTime = 0;
   let latesttime = 0;
   let chunkSize = 16384 - 16; // Adjusted chunk size, considering metadata
-  let threshold = 100;
+  let threshold = 50;
 
   const [debugInfo, setDebugInfo] = useState<string[]>([]); // Array for terminal style screen
   const addLog = (message: string) =>
@@ -71,6 +74,7 @@ export default function AnswerComponent() {
               if (parsedMessage.type === "fileDetails") {
                 fileDetails = parsedMessage.details;
                 chunkSize = parsedMessage.chunkSize;
+                threshold = parsedMessage.threshold;
                 // @ts-ignore
                 //totalSize = fileDetails.size;
                 // @ts-ignore
@@ -140,16 +144,6 @@ export default function AnswerComponent() {
                     sequenceNumber: sequenceNumber,
                   }),
                 );
-              }
-              // @ts-ignore
-              if (
-                sequenceNumber % 100 == 0 ||
-                sequenceNumber >= fileDetails?.size / chunkSize - 1
-              ) {
-                // console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
-                // console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
-                // console.log("Received chunk size:", dataBuffer.byteLength);
-                console.log(sequenceNumber);
                 if (fileDetails) {
                   const totalSize = fileDetails.size;
                   const receivedSize = sequenceNumber * chunkSize;
@@ -160,6 +154,16 @@ export default function AnswerComponent() {
                   const averageSpeed = receivedSize / 1000000 / elapsedTime; // in MBps
                   setAvgSpeed(averageSpeed);
                 }
+              }
+              // @ts-ignore
+              if (
+                sequenceNumber % 100 == 0 ||
+                sequenceNumber >= fileDetails?.size / chunkSize - 1
+              ) {
+                // console.log("speed: ", (dataBuffer.byteLength/1024)/((latesttime-timestamp)/ 1000))
+                // console.log("Received metadata:", { identifier, timestamp, sequenceNumber });
+                // console.log("Received chunk size:", dataBuffer.byteLength);
+                console.log(sequenceNumber);
               }
               // Handle dataBuffer, e.g., store or concatenate
             }
@@ -293,11 +297,34 @@ export default function AnswerComponent() {
   const handleGetAnswer = async () => {
     // Logic to retrieve answer
   };
+  const router = useRouter();
+
+  const handleBackClick = () => {
+    if (rc.current?.connectionState === "connected") {
+      if (
+        confirm(
+          "Any ongoing transfer will be canceled. Do you want to continue?",
+        )
+      ) {
+        // Perform any cleanup or state reset needed here
+        router.push("/");
+      }
+    } else {
+      router.push("/");
+    }
+  };
 
   const [show_scanner, setShowScanner] = useState(true);
   return (
     <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg text-center">
+        <button
+          onClick={handleBackClick}
+          className=" top-4 left-4 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 flex items-center space-x-2"
+        >
+          <FontAwesomeIcon icon={faChevronLeft} />
+          <span>Back</span>
+        </button>
         <h1 className="text-2xl font-bold mb-5 text-gray-800 dark:text-white">
           Connect to Share
         </h1>
@@ -326,6 +353,13 @@ export default function AnswerComponent() {
             >
               {progress.toFixed(2)}%
             </div>
+          </div>
+          <div className="mt-2 text-gray-600 dark:text-gray-300">
+            {avgSpeed > 0 ? (
+              <p>Speed: {avgSpeed.toFixed(4)} MB/s</p>
+            ) : (
+              <p>Calculating speed...</p>
+            )}
           </div>
           <div className="mt-6">
             <button
