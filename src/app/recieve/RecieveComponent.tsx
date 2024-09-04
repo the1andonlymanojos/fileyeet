@@ -29,6 +29,7 @@ export default function AnswerComponent() {
   const handleConnect = async () => {
     // Logic for connecting
     setDebugInfo([...debugInfo, `Connected with ID: ${callId}`]);
+    // @ts-ignore
     connectButtonRef.current.disabled = true;
     await handleSubmitAnswer();
   };
