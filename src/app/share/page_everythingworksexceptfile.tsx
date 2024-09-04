@@ -10,11 +10,14 @@ import { resolveMetadataItems } from "next/dist/lib/metadata/resolve-metadata";
 export default function ShareBox() {
   //let callId: string;
   const [callId, setCallId] = useState("");
+  const [shareMessage, setShareMessage] = useState("");
+  const gatheredCandidates = useRef(false);
   const pc = useRef<RTCPeerConnection | null>(null);
   const data_channel = useRef<RTCDataChannel | null>(null);
   const feedback_channel = useRef<RTCDataChannel | null>(null);
   let listen_for_ice_candidates = useRef(false);
   const fileInputRef = useRef(null);
+  const sendButtonRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
@@ -149,7 +152,7 @@ export default function ShareBox() {
   //     };
   //   }
   // }, [callId, pc.current]); //updating callback
-
+  const [iceErorMessage, setIceErorMessage] = useState("");
   async function handleStartCall() {
     if (pc.current) {
       const offerDescription = await pc.current?.createOffer();
@@ -158,9 +161,11 @@ export default function ShareBox() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ offer: offerDescription }),
       });
+
       const data = await response.json();
       console.log(data);
       setCallId(data.callId);
+      setShareMessage("Initialising, please wait.");
       pc.current.onicegatheringstatechange = async () => {
         console.log("ICE Gathering State: ", pc.current?.iceGatheringState);
         if (pc.current?.iceGatheringState === "complete") {
@@ -174,6 +179,8 @@ export default function ShareBox() {
               offer: pc.current?.localDescription,
             }),
           });
+          gatheredCandidates.current = true;
+          setShareMessage(callId);
         }
       };
 
@@ -186,7 +193,12 @@ export default function ShareBox() {
       //   }
       // });
       data_channel.current?.addEventListener("open", handleFileSend);
-
+      pc.current.addEventListener("icecandidateerror", (event) => {
+        setIceErorMessage(
+          "Failed to gather ICE candidates. This might be a browser problem, Please try again. If issue persists ensure both devices are on the same network.",
+        );
+        pc.current?.close();
+      });
       await pc.current?.setLocalDescription(offerDescription);
       addLog("Setting new local description!");
       initListen.current = true;
@@ -197,7 +209,7 @@ export default function ShareBox() {
 
   useEffect(() => {
     console.log("RUNNING EFECT");
-    if (initListen.current) {
+    if (initListen.current && gatheredCandidates.current) {
       const interval = setInterval(async () => {
         const callData = await fetch("/api/get-call", {
           method: "POST",
@@ -230,7 +242,7 @@ export default function ShareBox() {
         }
       }, 1000);
     }
-  }, [initListen.current]);
+  }, [initListen.current, gatheredCandidates.current]);
 
   // useEffect(() => {
   //     console.log("listen_for_ice_candidates", listen_for_ice_candidates.current);
@@ -260,6 +272,7 @@ export default function ShareBox() {
 
   const handleFileSend = () => {
     console.log("Sending file");
+
     //get max chunk size
     const lc_descr = pc.current?.localDescription;
     const rc_descr = pc.current?.remoteDescription;
@@ -473,7 +486,7 @@ export default function ShareBox() {
                 Share this code with the receiver in any way you prefer:
               </p>
               <QRCode value={callId} size={128} />
-              <p className="text-xl font-mono">{callId}</p>
+              <p className="text-xl font-mono">{shareMessage}</p>
             </div>
           </div>
         )}
@@ -500,8 +513,11 @@ export default function ShareBox() {
         )}
         {selectedFile && !sending && (
           <button
+            ref={sendButtonRef}
             className="mt-4 w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
             onClick={async () => {
+              // @ts-ignore
+              sendButtonRef.current.disabled = true;
               const id = await handleStartCall();
               console.log("DONE");
               console.log(callId);
@@ -512,6 +528,15 @@ export default function ShareBox() {
           >
             Send
           </button>
+        )}
+        {iceErorMessage && (
+          <div
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+            role="alert"
+          >
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{iceErorMessage}</span>
+          </div>
         )}
         <div className="mt-6">
           <button
