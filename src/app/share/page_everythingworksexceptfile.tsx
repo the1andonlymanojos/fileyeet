@@ -180,7 +180,7 @@ export default function ShareBox() {
             }),
           });
           gatheredCandidates.current = true;
-          setShareMessage(callId);
+          setShareMessage("Share this code with the recicever : " + callId);
         }
       };
 
@@ -482,11 +482,9 @@ export default function ShareBox() {
                 aspect-square max-w-72 flex flex-col items-center justify-center space-y-4 text-center"
           >
             <div className="text-gray-600 dark:text-gray-300 flex-col flex items-center justify-center space-y-2 relative z-10">
-              <p className="font-bold">
-                Share this code with the receiver in any way you prefer:
-              </p>
+              <p className="font-bold">{shareMessage}</p>
               <QRCode value={callId} size={128} />
-              <p className="text-xl font-mono">{shareMessage}</p>
+              <p className="text-xl font-mono"></p>
             </div>
           </div>
         )}
