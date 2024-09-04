@@ -152,6 +152,7 @@ export default function ShareBox() {
   //     };
   //   }
   // }, [callId, pc.current]); //updating callback
+  const callId_Ref = useRef("");
   const [iceErorMessage, setIceErorMessage] = useState("");
   async function handleStartCall() {
     if (pc.current) {
@@ -164,6 +165,7 @@ export default function ShareBox() {
 
       const data = await response.json();
       console.log(data);
+      callId_Ref.current = data.callId;
       setCallId(data.callId);
       setShareMessage("Initialising, please wait.");
       pc.current.onicegatheringstatechange = async () => {
@@ -180,7 +182,9 @@ export default function ShareBox() {
             }),
           });
           gatheredCandidates.current = true;
-          setShareMessage("Share this code with the recicever : " + callId);
+          setShareMessage(
+            "Share this code with the recicever : " + callId_Ref.current,
+          );
         }
       };
 
