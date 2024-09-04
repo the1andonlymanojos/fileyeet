@@ -15,6 +15,7 @@ export default function AnswerComponent() {
   const [avgSpeed, setAvgSpeed] = useState(0); // Average speed in MBps
   const [show_terminal, setShow_terminal] = useState(false);
   const connectButtonRef = useRef(null);
+  const [iceErrorMsg, setIceErrorMsg] = useState("");
   //local storage:
 
   let initialTime = 0;
@@ -25,10 +26,11 @@ export default function AnswerComponent() {
   const [debugInfo, setDebugInfo] = useState<string[]>([]); // Array for terminal style screen
   const addLog = (message: string) =>
     setDebugInfo((prevLogs: string[]) => [...prevLogs, message]);
-  const handleConnect = () => {
+  const handleConnect = async () => {
     // Logic for connecting
     setDebugInfo([...debugInfo, `Connected with ID: ${callId}`]);
-    handleSubmitAnswer();
+    connectButtonRef.current.disabled = true;
+    await handleSubmitAnswer();
   };
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -201,6 +203,9 @@ export default function AnswerComponent() {
           feedback_channel.current = feedbackChannel;
         }
       };
+      rc.current.onicecandidateerror = (e) => {
+        setIceErrorMsg(e.errorText);
+      };
     }
   }, []);
 
@@ -337,14 +342,13 @@ export default function AnswerComponent() {
             className="px-4 py-2 border rounded w-full bg-gray-200 dark:bg-gray-700 dark:text-white"
           />
           <button
-            onClick={() => {
-              handleConnect();
-            }}
+            onClick={handleConnect}
             className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors duration-300"
             ref={connectButtonRef}
           >
             Connect and Download
           </button>
+          <p className="text-red-500">{iceErrorMsg}</p>
 
           <div className="mt-4 w-full bg-gray-200 dark:bg-gray-700 rounded-full">
             <div
