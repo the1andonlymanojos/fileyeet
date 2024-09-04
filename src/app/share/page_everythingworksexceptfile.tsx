@@ -199,7 +199,9 @@ export default function ShareBox() {
       data_channel.current?.addEventListener("open", handleFileSend);
       pc.current.addEventListener("icecandidateerror", (event) => {
         setIceErorMessage(
-          "Failed to gather ICE candidates. This might be a browser problem, Please try again. If issue persists ensure both devices are on the same network.",
+          "Failed to gather ICE candidates. This might be a browser problem, Please try again. If issue persists ensure both devices are on the same network." +
+            "\n" +
+            event.errorText,
         );
         pc.current?.close();
       });
