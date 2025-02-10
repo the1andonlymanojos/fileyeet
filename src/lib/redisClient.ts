@@ -3,8 +3,8 @@ import Redis from 'ioredis';
 let redis:Redis;
 if (process.env.REDIS_PASSWORD){
  redis = new  Redis({
-  port: 16874, // Redis port
-  host: "redis-16874.c93.us-east-1-3.ec2.redns.redis-cloud.com", // Redis host
+  port: 12297, // Redis port
+  host: "redis-12297.c305.ap-south-1-1.ec2.redns.redis-cloud.com", // Redis host
   username: "default", // needs Redis >= 6
   password: process.env.REDIS_PASSWORD,
  });
@@ -18,3 +18,6 @@ if (process.env.REDIS_PASSWORD){
  redis.ping().then(e => console.log(e));
 
 export default redis;
+
+
+
