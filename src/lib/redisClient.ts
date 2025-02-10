@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 let redis:Redis;
 if (process.env.REDIS_PASSWORD){
